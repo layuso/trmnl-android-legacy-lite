@@ -48,7 +48,7 @@ public class ConfigActivity extends AppCompatActivity {
     message.setText("Validating...");
     String token=tokenEdit.getText().toString().trim(); if(token.isEmpty()){ message.setText("Token is required."); return; }
     String base=selectedBase(); if(selectedMode().equals(Prefs.MODE_BYOS)&&base.isEmpty()){ message.setText("Base URL is required for BYOS."); return; }
-    api.getCurrent(base, token, r -> runOnUiThread(() -> {
+    api.getDisplay(base, token, r -> runOnUiThread(() -> {
       if(r.ok && r.bitmap!=null){
         holder.bmp=r.bitmap;
         preview.setImageBitmap(r.bitmap);

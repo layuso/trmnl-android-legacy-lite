@@ -62,13 +62,14 @@ public class ApiClient {
         URL u = new URL(b + path);
         c = (HttpURLConnection)u.openConnection();
         c.setRequestMethod("GET"); c.setConnectTimeout(10000); c.setReadTimeout(10000);
-        c.setRequestProperty("Accept","application/json");
-        c.setRequestProperty("access-token", token.trim());
+        c.setRequestProperty("accept","application/json");
+        c.setRequestProperty("Access-Token", token.trim());
         int code = c.getResponseCode();
 
         if(code<200 || code>=300){
           String errBody = tryReadError(c);
-          cb.onResult(new Result(false,"HTTP "+code,null,60,false,true,errBody));
+          String debug = "endpoint=" + path + "\nhttp_status=" + code + (errBody==null?"":"\n"+errBody);
+          cb.onResult(new Result(false,"HTTP "+code,null,60,false,true,debug));
           return;
         }
 
@@ -80,7 +81,8 @@ public class ApiClient {
 
         if(image==null || image.trim().isEmpty()){
           String msg = first(j.optString("error", null), j.optString("message", null), "No image URL in response");
-          cb.onResult(new Result(false,msg,null,rr,false,true,body));
+          String debug = "endpoint=" + path + "\nhttp_status=200\n" + body;
+          cb.onResult(new Result(false,msg,null,rr,false,true,debug));
           return;
         }
 
@@ -92,7 +94,8 @@ public class ApiClient {
         Bitmap bmp = BitmapFactory.decodeStream(is);
         if(bmp==null){ cb.onResult(new Result(false,"Image decode failed",null,rr,false,true,body)); return; }
 
-        cb.onResult(new Result(true,"OK",bmp,rr,false,false,body));
+        String debug = "endpoint=" + path + "\nhttp_status=200\n" + body;
+        cb.onResult(new Result(true,"OK",bmp,rr,false,false,debug));
       } catch(Exception e){
         boolean network = isNetworkException(e);
         cb.onResult(new Result(false, network ? "Network connectivity issue: " + e.getMessage() : e.getMessage(), null, 60, network, !network, null));
