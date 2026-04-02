@@ -24,6 +24,7 @@ public class MainActivity extends AppCompatActivity {
   private static final boolean ENABLE_FULL_REFRESH_CYCLE = true;
   private static final long FULL_REFRESH_BLACK_HOLD_MS = 220;
   private static final long FULL_REFRESH_WHITE_HOLD_MS = 220;
+  private static final int FULL_REFRESH_CYCLES = 3;
 
   private Prefs prefs;
   private ApiClient api;
@@ -100,11 +101,20 @@ public class MainActivity extends AppCompatActivity {
   }
 
   private void runFullRefreshCycle(Runnable onComplete){
-    image.setImageDrawable(new ColorDrawable(Color.BLACK));
-    h.postDelayed(() -> {
-      image.setImageDrawable(new ColorDrawable(Color.WHITE));
-      h.postDelayed(onComplete, FULL_REFRESH_WHITE_HOLD_MS);
-    }, FULL_REFRESH_BLACK_HOLD_MS);
+    runFullRefreshPhase(0, onComplete);
+  }
+
+  private void runFullRefreshPhase(int phaseIndex, Runnable onComplete){
+    int totalPhases = FULL_REFRESH_CYCLES * 2; // black+white per cycle
+    if (phaseIndex >= totalPhases) {
+      onComplete.run();
+      return;
+    }
+
+    boolean blackPhase = (phaseIndex % 2 == 0);
+    image.setImageDrawable(new ColorDrawable(blackPhase ? Color.BLACK : Color.WHITE));
+    long hold = blackPhase ? FULL_REFRESH_BLACK_HOLD_MS : FULL_REFRESH_WHITE_HOLD_MS;
+    h.postDelayed(() -> runFullRefreshPhase(phaseIndex + 1, onComplete), hold);
   }
 
   private void debugTriggerFullRefreshCycle(){
