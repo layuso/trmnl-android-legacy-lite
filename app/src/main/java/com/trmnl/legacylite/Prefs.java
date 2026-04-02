@@ -29,7 +29,7 @@ public class Prefs {
     sp.edit().putString("orientation", o).apply();
   }
 
-  public String orientation(){ return sp.getString("orientation", ORIENTATION_PORTRAIT); }
+  public String orientation(){ return sp.getString("orientation", ORIENTATION_LANDSCAPE); }
 
   public String mode(){ return sp.getString("mode", MODE_BYOD); }
   public String base(){ return sp.getString("base", ""); }
