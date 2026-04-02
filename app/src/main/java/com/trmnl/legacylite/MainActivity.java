@@ -2,6 +2,9 @@ package com.trmnl.legacylite;
 
 import android.app.AlertDialog;
 import android.content.Intent;
+import android.graphics.Bitmap;
+import android.graphics.Color;
+import android.graphics.drawable.ColorDrawable;
 import android.os.Bundle;
 import android.os.Handler;
 import android.os.Looper;
@@ -16,21 +19,33 @@ import androidx.appcompat.app.AppCompatActivity;
 public class MainActivity extends AppCompatActivity {
   private static final String FALLBACK_IMAGE_URL = "https://trmnl.com/images/system_screens/setup_logo/og_plus.png";
 
-  private Prefs prefs; private ApiClient api;
-  private ImageView image; private TextView status;
+  // Stage 1 full-refresh fallback settings (safe on Android 5.1.1)
+  private static final boolean ENABLE_FULL_REFRESH_CYCLE = true;
+  private static final long FULL_REFRESH_BLACK_HOLD_MS = 220;
+  private static final long FULL_REFRESH_WHITE_HOLD_MS = 220;
+
+  private Prefs prefs;
+  private ApiClient api;
+  private ImageView image;
+  private TextView status;
+  private Bitmap lastBitmap;
+
   private final Handler h = new Handler(Looper.getMainLooper());
   private int refreshSec = 60;
   private int consecutiveImageFailures = 0;
 
   private final ActivityResultLauncher<Intent> configLauncher = registerForActivityResult(
       new ActivityResultContracts.StartActivityForResult(), r -> {
-        if(prefs.configured()) loadNext(); else openConfig();
+        if (prefs.configured()) loadNext(); else openConfig();
       });
 
   @Override protected void onCreate(Bundle b){
-    super.onCreate(b); setContentView(R.layout.activity_main);
-    prefs=new Prefs(this); api=new ApiClient();
-    image=findViewById(R.id.fullImage); status=findViewById(R.id.statusText);
+    super.onCreate(b);
+    setContentView(R.layout.activity_main);
+    prefs = new Prefs(this);
+    api = new ApiClient();
+    image = findViewById(R.id.fullImage);
+    status = findViewById(R.id.statusText);
     immersive();
 
     image.setOnClickListener(v -> showMenu());
@@ -47,21 +62,64 @@ public class MainActivity extends AppCompatActivity {
     h.removeCallbacksAndMessages(null);
   }
 
-  private void openConfig(){ configLauncher.launch(new Intent(this, ConfigActivity.class)); }
+  private void openConfig(){
+    configLauncher.launch(new Intent(this, ConfigActivity.class));
+  }
 
   private void loadNext(){
     status.setVisibility(View.GONE);
     api.getDisplay(prefs.effectiveBase(), prefs.token(), r -> runOnUiThread(() -> applyResult(r)));
   }
 
-  private void loadCurrent(){
+  private void loadCurrentWithFullRefresh(){
     status.setVisibility(View.GONE);
-    api.getCurrent(prefs.effectiveBase(), prefs.token(), r -> runOnUiThread(() -> applyResult(r)));
+    api.getCurrent(prefs.effectiveBase(), prefs.token(), r -> runOnUiThread(() -> {
+      if (r.ok && r.bitmap != null) {
+        Runnable renderTarget = () -> {
+          image.setImageBitmap(r.bitmap);
+          lastBitmap = r.bitmap;
+          refreshSec = r.refreshRate > 0 ? r.refreshRate : 60;
+          status.setText("");
+          status.setVisibility(View.GONE);
+          consecutiveImageFailures = 0;
+          scheduleNext(Math.max(15, refreshSec));
+        };
+
+        if (ENABLE_FULL_REFRESH_CYCLE) {
+          runFullRefreshCycle(renderTarget);
+        } else {
+          renderTarget.run();
+        }
+      } else {
+        applyResult(r);
+      }
+    }));
+  }
+
+  private void runFullRefreshCycle(Runnable onComplete){
+    image.setImageDrawable(new ColorDrawable(Color.BLACK));
+    h.postDelayed(() -> {
+      image.setImageDrawable(new ColorDrawable(Color.WHITE));
+      h.postDelayed(onComplete, FULL_REFRESH_WHITE_HOLD_MS);
+    }, FULL_REFRESH_BLACK_HOLD_MS);
+  }
+
+  private void debugTriggerFullRefreshCycle(){
+    Bitmap previous = lastBitmap;
+    runFullRefreshCycle(() -> {
+      if (previous != null) {
+        image.setImageBitmap(previous);
+      }
+      status.setText("Debug full-refresh cycle completed");
+      status.setVisibility(View.VISIBLE);
+      h.postDelayed(() -> status.setVisibility(View.GONE), 1500);
+    });
   }
 
   private void applyResult(ApiClient.Result r){
     if(r.ok && r.bitmap!=null){
       image.setImageBitmap(r.bitmap);
+      lastBitmap = r.bitmap;
       refreshSec = r.refreshRate>0 ? r.refreshRate : 60;
       status.setText("");
       status.setVisibility(View.GONE);
@@ -85,14 +143,17 @@ public class MainActivity extends AppCompatActivity {
 
   private void showFallbackThenHandlePersistence(){
     api.fetchImageByUrl(FALLBACK_IMAGE_URL, fr -> runOnUiThread(() -> {
-      if(fr.ok && fr.bitmap!=null){ image.setImageBitmap(fr.bitmap); }
+      if(fr.ok && fr.bitmap!=null){
+        image.setImageBitmap(fr.bitmap);
+        lastBitmap = fr.bitmap;
+      }
       h.removeCallbacksAndMessages(null);
       h.postDelayed(() -> {
         if(consecutiveImageFailures >= 2){
           prefs.clearConfigured();
           openConfig();
         } else {
-          loadCurrent();
+          loadCurrentWithFullRefresh();
         }
       }, 30000);
     }));
@@ -107,7 +168,8 @@ public class MainActivity extends AppCompatActivity {
     String[] options = new String[]{
         "Configure Device",
         "Refresh Current Image",
-        "Load Next Playlist Image"
+        "Load Next Playlist Image",
+        "Debug Full Refresh Cycle"
     };
 
     new AlertDialog.Builder(this)
@@ -116,9 +178,11 @@ public class MainActivity extends AppCompatActivity {
           if(which == 0){
             openConfig();
           } else if(which == 1){
-            loadCurrent();
+            loadCurrentWithFullRefresh();
           } else if(which == 2){
             loadNext();
+          } else if(which == 3){
+            debugTriggerFullRefreshCycle();
           }
         })
         .show();
