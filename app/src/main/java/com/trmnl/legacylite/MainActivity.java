@@ -38,7 +38,11 @@ public class MainActivity extends AppCompatActivity {
 
   private final ActivityResultLauncher<Intent> configLauncher = registerForActivityResult(
       new ActivityResultContracts.StartActivityForResult(), r -> {
-        if (prefs.configured()) loadNext(); else openConfig();
+        if (prefs.configured()) {
+          recreate();
+        } else {
+          openConfig();
+        }
       });
 
   @Override protected void onCreate(Bundle b){
@@ -56,7 +60,6 @@ public class MainActivity extends AppCompatActivity {
 
   @Override protected void onResume(){
     super.onResume();
-    applyConfiguredOrientation();
     if(!prefs.configured()) openConfig();
     else loadNext();
   }
