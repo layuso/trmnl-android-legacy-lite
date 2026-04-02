@@ -9,6 +9,7 @@ import java.net.HttpURLConnection;
 import java.net.SocketTimeoutException;
 import java.net.URL;
 import java.net.UnknownHostException;
+import java.security.MessageDigest;
 
 public class ApiClient {
   public static class Result {
@@ -59,16 +60,19 @@ public class ApiClient {
       HttpURLConnection c=null, ic=null; InputStream is=null;
       try{
         String b = normalize(base);
+        String tokenClean = token == null ? "" : token.trim();
         URL u = new URL(b + path);
         c = (HttpURLConnection)u.openConnection();
         c.setRequestMethod("GET"); c.setConnectTimeout(10000); c.setReadTimeout(10000);
         c.setRequestProperty("accept","application/json");
-        c.setRequestProperty("Access-Token", token.trim());
+        c.setRequestProperty("Access-Token", tokenClean);
         int code = c.getResponseCode();
+
+        String diagPrefix = buildDiagnosticsPrefix(b, path, tokenClean, code);
 
         if(code<200 || code>=300){
           String errBody = tryReadError(c);
-          String debug = "endpoint=" + path + "\nhttp_status=" + code + (errBody==null?"":"\n"+errBody);
+          String debug = diagPrefix + (errBody==null?"":"\n" + errBody);
           cb.onResult(new Result(false,"HTTP "+code,null,60,false,true,debug));
           return;
         }
@@ -81,26 +85,64 @@ public class ApiClient {
 
         if(image==null || image.trim().isEmpty()){
           String msg = first(j.optString("error", null), j.optString("message", null), "No image URL in response");
-          String debug = "endpoint=" + path + "\nhttp_status=200\n" + body;
+          String debug = diagPrefix + "\n" + body;
           cb.onResult(new Result(false,msg,null,rr,false,true,debug));
           return;
         }
 
         ic = (HttpURLConnection)new URL(image).openConnection();
         ic.setRequestMethod("GET"); ic.setConnectTimeout(10000); ic.setReadTimeout(10000);
-        if(ic.getResponseCode()<200 || ic.getResponseCode()>=300){ cb.onResult(new Result(false,"Image fetch failed",null,rr,false,true,body)); return; }
+        if(ic.getResponseCode()<200 || ic.getResponseCode()>=300){
+          String debug = diagPrefix + "\nImage fetch failed for URL: " + image;
+          cb.onResult(new Result(false,"Image fetch failed",null,rr,false,true,debug));
+          return;
+        }
 
         is = ic.getInputStream();
         Bitmap bmp = BitmapFactory.decodeStream(is);
-        if(bmp==null){ cb.onResult(new Result(false,"Image decode failed",null,rr,false,true,body)); return; }
+        if(bmp==null){
+          String debug = diagPrefix + "\nImage decode failed for URL: " + image;
+          cb.onResult(new Result(false,"Image decode failed",null,rr,false,true,debug));
+          return;
+        }
 
-        String debug = "endpoint=" + path + "\nhttp_status=200\n" + body;
+        String debug = diagPrefix + "\n" + body;
         cb.onResult(new Result(true,"OK",bmp,rr,false,false,debug));
       } catch(Exception e){
         boolean network = isNetworkException(e);
-        cb.onResult(new Result(false, network ? "Network connectivity issue: " + e.getMessage() : e.getMessage(), null, 60, network, !network, null));
+        cb.onResult(new Result(false, network ? "Network connectivity issue: " + e.getMessage() : e.getMessage(), null, 60, network, !network, "exception=" + e.getClass().getSimpleName()));
       } finally{ try{ if(is!=null)is.close(); }catch(Exception ignored){} if(c!=null)c.disconnect(); if(ic!=null)ic.disconnect(); }
     }).start();
+  }
+
+  private String buildDiagnosticsPrefix(String base, String path, String token, int code){
+    return "endpoint=" + path
+        + "\nurl=" + base + path
+        + "\nhttp_status=" + code
+        + "\ntoken_info=" + tokenInfo(token);
+  }
+
+  private String tokenInfo(String token){
+    if(token == null) return "len=0";
+    String t = token.trim();
+    int len = t.length();
+    String first4 = len >= 4 ? t.substring(0,4) : t;
+    String last4 = len >= 4 ? t.substring(len-4) : t;
+    String hash8 = sha256Hex(t);
+    if(hash8.length() > 8) hash8 = hash8.substring(0,8);
+    return "len=" + len + ", first4=" + first4 + ", last4=" + last4 + ", sha256_8=" + hash8;
+  }
+
+  private String sha256Hex(String s){
+    try {
+      MessageDigest md = MessageDigest.getInstance("SHA-256");
+      byte[] d = md.digest(s.getBytes("UTF-8"));
+      StringBuilder sb = new StringBuilder();
+      for (byte b : d) sb.append(String.format("%02x", b));
+      return sb.toString();
+    } catch (Exception e){
+      return "na";
+    }
   }
 
   private boolean isNetworkException(Exception e){
