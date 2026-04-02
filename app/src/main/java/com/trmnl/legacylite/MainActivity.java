@@ -2,6 +2,7 @@ package com.trmnl.legacylite;
 
 import android.app.AlertDialog;
 import android.content.Intent;
+import android.content.pm.ActivityInfo;
 import android.graphics.Bitmap;
 import android.graphics.Color;
 import android.graphics.drawable.ColorDrawable;
@@ -46,6 +47,7 @@ public class MainActivity extends AppCompatActivity {
     api = new ApiClient();
     image = findViewById(R.id.fullImage);
     status = findViewById(R.id.statusText);
+    applyConfiguredOrientation();
     immersive();
 
     image.setOnClickListener(v -> showMenu());
@@ -53,6 +55,7 @@ public class MainActivity extends AppCompatActivity {
 
   @Override protected void onResume(){
     super.onResume();
+    applyConfiguredOrientation();
     if(!prefs.configured()) openConfig();
     else loadNext();
   }
@@ -186,6 +189,15 @@ public class MainActivity extends AppCompatActivity {
           }
         })
         .show();
+  }
+
+  private void applyConfiguredOrientation(){
+    String o = prefs.orientation();
+    if (Prefs.ORIENTATION_LANDSCAPE.equals(o)) {
+      setRequestedOrientation(ActivityInfo.SCREEN_ORIENTATION_LANDSCAPE);
+    } else {
+      setRequestedOrientation(ActivityInfo.SCREEN_ORIENTATION_PORTRAIT);
+    }
   }
 
   private void immersive(){

@@ -4,4 +4,8 @@
     <item>BYOD</item>
     <item>BYOS</item>
   </string-array>
+  <string-array name="orientations">
+    <item>PORTRAIT</item>
+    <item>LANDSCAPE</item>
+  </string-array>
 </resources>

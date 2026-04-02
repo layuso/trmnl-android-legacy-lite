@@ -9,24 +9,47 @@ import org.json.JSONArray;
 import org.json.JSONObject;
 
 public class ConfigActivity extends AppCompatActivity {
-  private Spinner modeSpinner; private EditText baseEdit, tokenEdit; private Button validateBtn, saveBtn;
-  private ImageView preview; private TextView message; private LinearLayout baseWrap;
+  private Spinner modeSpinner;
+  private Spinner orientationSpinner;
+  private EditText baseEdit, tokenEdit;
+  private Button validateBtn, saveBtn;
+  private ImageView preview;
+  private TextView message;
+  private LinearLayout baseWrap;
   private BitmapHolder holder = new BitmapHolder();
-  private Prefs prefs; private ApiClient api;
+  private Prefs prefs;
+  private ApiClient api;
 
   @Override protected void onCreate(Bundle b){
     super.onCreate(b); setContentView(R.layout.activity_config);
     prefs=new Prefs(this); api=new ApiClient();
-    modeSpinner=findViewById(R.id.modeSpinner); baseEdit=findViewById(R.id.baseUrlEdit); tokenEdit=findViewById(R.id.tokenEdit);
-    validateBtn=findViewById(R.id.validateBtn); saveBtn=findViewById(R.id.saveBtn); preview=findViewById(R.id.previewImage);
-    message=findViewById(R.id.previewMessage); baseWrap=findViewById(R.id.baseWrap);
+    modeSpinner=findViewById(R.id.modeSpinner);
+    orientationSpinner=findViewById(R.id.orientationSpinner);
+    baseEdit=findViewById(R.id.baseUrlEdit);
+    tokenEdit=findViewById(R.id.tokenEdit);
+    validateBtn=findViewById(R.id.validateBtn);
+    saveBtn=findViewById(R.id.saveBtn);
+    preview=findViewById(R.id.previewImage);
+    message=findViewById(R.id.previewMessage);
+    baseWrap=findViewById(R.id.baseWrap);
     message.setMovementMethod(new ScrollingMovementMethod());
 
     ArrayAdapter<CharSequence> ma = ArrayAdapter.createFromResource(this,R.array.modes,android.R.layout.simple_spinner_item);
-    ma.setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item); modeSpinner.setAdapter(ma);
+    ma.setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item);
+    modeSpinner.setAdapter(ma);
 
-    String mode=prefs.mode(); modeSpinner.setSelection(Prefs.MODE_BYOS.equals(mode)?1:0);
-    tokenEdit.setText(prefs.token()); baseEdit.setText(prefs.base());
+    ArrayAdapter<CharSequence> oa = ArrayAdapter.createFromResource(this,R.array.orientations,android.R.layout.simple_spinner_item);
+    oa.setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item);
+    orientationSpinner.setAdapter(oa);
+
+    String mode = prefs.mode();
+    modeSpinner.setSelection(Prefs.MODE_BYOS.equals(mode) ? 1 : 0);
+
+    String orientation = prefs.orientation();
+    orientationSpinner.setSelection(Prefs.ORIENTATION_LANDSCAPE.equals(orientation) ? 1 : 0);
+
+    tokenEdit.setText(prefs.token());
+    baseEdit.setText(prefs.base());
     onModeChanged();
 
     modeSpinner.setOnItemSelectedListener(new AdapterView.OnItemSelectedListener() {
@@ -41,6 +64,7 @@ public class ConfigActivity extends AppCompatActivity {
 
   private void onModeChanged(){ baseWrap.setVisibility(selectedMode().equals(Prefs.MODE_BYOS)?View.VISIBLE:View.GONE); }
   private String selectedMode(){ return modeSpinner.getSelectedItemPosition()==1?Prefs.MODE_BYOS:Prefs.MODE_BYOD; }
+  private String selectedOrientation(){ return orientationSpinner.getSelectedItemPosition()==1?Prefs.ORIENTATION_LANDSCAPE:Prefs.ORIENTATION_PORTRAIT; }
   private String selectedBase(){ return selectedMode().equals(Prefs.MODE_BYOD)?Prefs.TRMNL_BASE:baseEdit.getText().toString().trim(); }
 
   private void validate(){
@@ -71,7 +95,9 @@ public class ConfigActivity extends AppCompatActivity {
   private void save(){
     if(holder.bmp==null){ Toast.makeText(this,"Cannot save without preview image",Toast.LENGTH_SHORT).show(); return; }
     prefs.save(selectedMode(), selectedMode().equals(Prefs.MODE_BYOD)?Prefs.TRMNL_BASE:baseEdit.getText().toString().trim(), tokenEdit.getText().toString().trim());
-    setResult(RESULT_OK); finish();
+    prefs.setOrientation(selectedOrientation());
+    setResult(RESULT_OK);
+    finish();
   }
 
   private String prettyJson(String raw){
