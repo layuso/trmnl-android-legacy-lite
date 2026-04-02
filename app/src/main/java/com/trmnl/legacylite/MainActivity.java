@@ -1,6 +1,5 @@
 package com.trmnl.legacylite;
 
-import android.app.AlertDialog;
 import android.content.Intent;
 import android.os.Bundle;
 import android.os.Handler;
@@ -14,49 +13,88 @@ import androidx.activity.result.contract.ActivityResultContracts;
 import androidx.appcompat.app.AppCompatActivity;
 
 public class MainActivity extends AppCompatActivity {
+  private static final String FALLBACK_IMAGE_URL = "https://trmnl.com/images/system_screens/setup_logo/og_plus.png";
+
   private Prefs prefs; private ApiClient api;
   private ImageView image; private TextView status;
   private final Handler h = new Handler(Looper.getMainLooper());
   private int refreshSec = 60;
+  private int consecutiveImageFailures = 0;
 
   private final ActivityResultLauncher<Intent> configLauncher = registerForActivityResult(
-      new ActivityResultContracts.StartActivityForResult(), r -> { if(prefs.configured()) loadNext(); else openConfig(); });
+      new ActivityResultContracts.StartActivityForResult(), r -> {
+        if(prefs.configured()) loadNext(); else openConfig();
+      });
 
   @Override protected void onCreate(Bundle b){
     super.onCreate(b); setContentView(R.layout.activity_main);
     prefs=new Prefs(this); api=new ApiClient();
     image=findViewById(R.id.fullImage); status=findViewById(R.id.statusText);
     immersive();
-    image.setOnClickListener(v -> showMenu());
   }
 
-  @Override protected void onResume(){ super.onResume(); if(!prefs.configured()) openConfig(); else loadNext(); }
-  @Override protected void onPause(){ super.onPause(); h.removeCallbacksAndMessages(null); }
+  @Override protected void onResume(){
+    super.onResume();
+    if(!prefs.configured()) openConfig();
+    else loadNext();
+  }
+
+  @Override protected void onPause(){
+    super.onPause();
+    h.removeCallbacksAndMessages(null);
+  }
 
   private void openConfig(){ configLauncher.launch(new Intent(this, ConfigActivity.class)); }
 
   private void loadNext(){
-    status.setText("Loading next playlist image...");
-    api.getDisplay(prefs.effectiveBase(), prefs.token(), r -> runOnUiThread(() -> applyResult(r,true)));
+    status.setText("Loading image...");
+    api.getDisplay(prefs.effectiveBase(), prefs.token(), r -> runOnUiThread(() -> applyResult(r)));
   }
 
   private void loadCurrent(){
     status.setText("Refreshing current image...");
-    api.getCurrent(prefs.effectiveBase(), prefs.token(), r -> runOnUiThread(() -> applyResult(r,false)));
+    api.getCurrent(prefs.effectiveBase(), prefs.token(), r -> runOnUiThread(() -> applyResult(r)));
   }
 
-  private void applyResult(ApiClient.Result r, boolean schedule){
-    if(r.ok && r.bitmap!=null){ image.setImageBitmap(r.bitmap); refreshSec = r.refreshRate>0 ? r.refreshRate : 60; status.setText(""); }
-    else { status.setText(r.message==null?"Failed to load image":r.message); }
-    if(schedule){ h.removeCallbacksAndMessages(null); h.postDelayed(this::loadNext, Math.max(15,refreshSec)*1000L); }
+  private void applyResult(ApiClient.Result r){
+    if(r.ok && r.bitmap!=null){
+      image.setImageBitmap(r.bitmap);
+      refreshSec = r.refreshRate>0 ? r.refreshRate : 60;
+      status.setText("");
+      consecutiveImageFailures = 0;
+      scheduleNext(Math.max(15, refreshSec));
+      return;
+    }
+
+    if(r.networkError){
+      status.setText(r.message==null?"Network connectivity issue":r.message);
+      scheduleNext(30);
+      return;
+    }
+
+    consecutiveImageFailures++;
+    status.setText(r.message==null?"Image unavailable from server":r.message);
+    showFallbackThenHandlePersistence();
   }
 
-  private void showMenu(){
-    String[] opts = new String[]{"Configure Device","Refresh Current Image","Load Next Playlist Image"};
-    new AlertDialog.Builder(this)
-      .setTitle("Options")
-      .setItems(opts,(d,w)->{ if(w==0) openConfig(); else if(w==1) loadCurrent(); else loadNext(); })
-      .show();
+  private void showFallbackThenHandlePersistence(){
+    api.fetchImageByUrl(FALLBACK_IMAGE_URL, fr -> runOnUiThread(() -> {
+      if(fr.ok && fr.bitmap!=null){ image.setImageBitmap(fr.bitmap); }
+      h.removeCallbacksAndMessages(null);
+      h.postDelayed(() -> {
+        if(consecutiveImageFailures >= 2){
+          prefs.clearConfigured();
+          openConfig();
+        } else {
+          loadCurrent();
+        }
+      }, 30000);
+    }));
+  }
+
+  private void scheduleNext(int seconds){
+    h.removeCallbacksAndMessages(null);
+    h.postDelayed(this::loadNext, seconds*1000L);
   }
 
   private void immersive(){
