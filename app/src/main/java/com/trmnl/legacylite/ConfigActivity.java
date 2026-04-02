@@ -5,6 +5,8 @@ import android.text.method.ScrollingMovementMethod;
 import android.view.View;
 import android.widget.*;
 import androidx.appcompat.app.AppCompatActivity;
+import org.json.JSONArray;
+import org.json.JSONObject;
 
 public class ConfigActivity extends AppCompatActivity {
   private Spinner modeSpinner; private EditText baseEdit, tokenEdit; private Button validateBtn, saveBtn;
@@ -48,9 +50,20 @@ public class ConfigActivity extends AppCompatActivity {
     String base=selectedBase(); if(selectedMode().equals(Prefs.MODE_BYOS)&&base.isEmpty()){ message.setText("Base URL is required for BYOS."); return; }
     api.getCurrent(base, token, r -> runOnUiThread(() -> {
       if(r.ok && r.bitmap!=null){
-        holder.bmp=r.bitmap; preview.setImageBitmap(r.bitmap); message.setText("Preview loaded. Refresh rate: "+r.refreshRate+"s"); saveBtn.setEnabled(true);
+        holder.bmp=r.bitmap;
+        preview.setImageBitmap(r.bitmap);
+        message.setText("Preview loaded. Refresh rate: "+r.refreshRate+"s");
+        saveBtn.setEnabled(true);
       } else {
-        preview.setImageDrawable(null); message.setText(r.message==null?"Device not found or no image returned.":r.message); saveBtn.setEnabled(false);
+        preview.setImageDrawable(null);
+        String header = r.message==null?"Device not found or no image returned.":r.message;
+        String json = prettyJson(r.rawBody);
+        if(json==null || json.trim().isEmpty()) {
+          message.setText(header);
+        } else {
+          message.setText(header + "\n\n" + json);
+        }
+        saveBtn.setEnabled(false);
       }
     }));
   }
@@ -59,6 +72,18 @@ public class ConfigActivity extends AppCompatActivity {
     if(holder.bmp==null){ Toast.makeText(this,"Cannot save without preview image",Toast.LENGTH_SHORT).show(); return; }
     prefs.save(selectedMode(), selectedMode().equals(Prefs.MODE_BYOD)?Prefs.TRMNL_BASE:baseEdit.getText().toString().trim(), tokenEdit.getText().toString().trim());
     setResult(RESULT_OK); finish();
+  }
+
+  private String prettyJson(String raw){
+    if(raw == null || raw.trim().isEmpty()) return null;
+    String t = raw.trim();
+    try {
+      if(t.startsWith("{")) return new JSONObject(t).toString(2);
+      if(t.startsWith("[")) return new JSONArray(t).toString(2);
+      return t;
+    } catch (Exception ignored){
+      return t;
+    }
   }
 
   private static class BitmapHolder { android.graphics.Bitmap bmp; }

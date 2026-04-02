@@ -18,10 +18,16 @@ public class ApiClient {
     public int refreshRate;
     public boolean networkError;
     public boolean imageUnavailable;
+    public String rawBody;
 
-    public Result(boolean ok, String message, Bitmap bitmap, int refreshRate, boolean networkError, boolean imageUnavailable) {
-      this.ok = ok; this.message = message; this.bitmap = bitmap; this.refreshRate = refreshRate;
-      this.networkError = networkError; this.imageUnavailable = imageUnavailable;
+    public Result(boolean ok, String message, Bitmap bitmap, int refreshRate, boolean networkError, boolean imageUnavailable, String rawBody) {
+      this.ok = ok;
+      this.message = message;
+      this.bitmap = bitmap;
+      this.refreshRate = refreshRate;
+      this.networkError = networkError;
+      this.imageUnavailable = imageUnavailable;
+      this.rawBody = rawBody;
     }
   }
 
@@ -37,13 +43,13 @@ public class ApiClient {
         ic = (HttpURLConnection)new URL(imageUrl).openConnection();
         ic.setRequestMethod("GET"); ic.setConnectTimeout(10000); ic.setReadTimeout(10000);
         int code = ic.getResponseCode();
-        if(code<200 || code>=300){ cb.onResult(new Result(false,"Fallback image fetch failed",null,30,false,true)); return; }
+        if(code<200 || code>=300){ cb.onResult(new Result(false,"Fallback image fetch failed",null,30,false,true,null)); return; }
         is = ic.getInputStream();
         Bitmap bmp = BitmapFactory.decodeStream(is);
-        if(bmp==null){ cb.onResult(new Result(false,"Fallback image decode failed",null,30,false,true)); return; }
-        cb.onResult(new Result(true,"OK",bmp,30,false,false));
+        if(bmp==null){ cb.onResult(new Result(false,"Fallback image decode failed",null,30,false,true,null)); return; }
+        cb.onResult(new Result(true,"OK",bmp,30,false,false,null));
       } catch (Exception e){
-        cb.onResult(new Result(false,e.getMessage(),null,30,isNetworkException(e),true));
+        cb.onResult(new Result(false,e.getMessage(),null,30,isNetworkException(e),true,null));
       } finally { try{ if(is!=null)is.close(); }catch(Exception ignored){} if(ic!=null)ic.disconnect(); }
     }).start();
   }
@@ -59,7 +65,12 @@ public class ApiClient {
         c.setRequestProperty("Accept","application/json");
         c.setRequestProperty("access-token", token.trim());
         int code = c.getResponseCode();
-        if(code<200 || code>=300){ cb.onResult(new Result(false,"HTTP "+code,null,60,false,true)); return; }
+
+        if(code<200 || code>=300){
+          String errBody = tryReadError(c);
+          cb.onResult(new Result(false,"HTTP "+code,null,60,false,true,errBody));
+          return;
+        }
 
         String body = read(c.getInputStream());
         JSONObject j = new JSONObject(body);
@@ -69,27 +80,40 @@ public class ApiClient {
 
         if(image==null || image.trim().isEmpty()){
           String msg = first(j.optString("error", null), j.optString("message", null), "No image URL in response");
-          cb.onResult(new Result(false,msg,null,rr,false,true)); return;
+          cb.onResult(new Result(false,msg,null,rr,false,true,body));
+          return;
         }
 
         ic = (HttpURLConnection)new URL(image).openConnection();
         ic.setRequestMethod("GET"); ic.setConnectTimeout(10000); ic.setReadTimeout(10000);
-        if(ic.getResponseCode()<200 || ic.getResponseCode()>=300){ cb.onResult(new Result(false,"Image fetch failed",null,rr,false,true)); return; }
+        if(ic.getResponseCode()<200 || ic.getResponseCode()>=300){ cb.onResult(new Result(false,"Image fetch failed",null,rr,false,true,body)); return; }
 
         is = ic.getInputStream();
         Bitmap bmp = BitmapFactory.decodeStream(is);
-        if(bmp==null){ cb.onResult(new Result(false,"Image decode failed",null,rr,false,true)); return; }
+        if(bmp==null){ cb.onResult(new Result(false,"Image decode failed",null,rr,false,true,body)); return; }
 
-        cb.onResult(new Result(true,"OK",bmp,rr,false,false));
+        cb.onResult(new Result(true,"OK",bmp,rr,false,false,body));
       } catch(Exception e){
         boolean network = isNetworkException(e);
-        cb.onResult(new Result(false, network ? "Network connectivity issue: " + e.getMessage() : e.getMessage(), null, 60, network, !network));
+        cb.onResult(new Result(false, network ? "Network connectivity issue: " + e.getMessage() : e.getMessage(), null, 60, network, !network, null));
       } finally{ try{ if(is!=null)is.close(); }catch(Exception ignored){} if(c!=null)c.disconnect(); if(ic!=null)ic.disconnect(); }
     }).start();
   }
 
   private boolean isNetworkException(Exception e){
     return e instanceof UnknownHostException || e instanceof SocketTimeoutException || e instanceof ConnectException;
+  }
+
+  private String tryReadError(HttpURLConnection c){
+    try {
+      InputStream es = c.getErrorStream();
+      if(es == null) return null;
+      String data = read(es);
+      es.close();
+      return data;
+    } catch (Exception ignored){
+      return null;
+    }
   }
 
   private String normalize(String base){
