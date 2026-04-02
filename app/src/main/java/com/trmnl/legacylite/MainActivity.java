@@ -22,8 +22,8 @@ public class MainActivity extends AppCompatActivity {
 
   // Stage 1 full-refresh fallback settings (safe on Android 5.1.1)
   private static final boolean ENABLE_FULL_REFRESH_CYCLE = true;
-  private static final long FULL_REFRESH_BLACK_HOLD_MS = 220;
-  private static final long FULL_REFRESH_WHITE_HOLD_MS = 220;
+  private static final long FULL_REFRESH_BLACK_HOLD_MS = 1000;
+  private static final long FULL_REFRESH_WHITE_HOLD_MS = 1000;
   private static final int FULL_REFRESH_CYCLES = 3;
 
   private Prefs prefs;
