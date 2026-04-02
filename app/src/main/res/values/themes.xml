@@ -1,0 +1,3 @@
+<resources>
+  <style name="Theme.TrmnlLegacyLite" parent="Theme.MaterialComponents.DayNight.NoActionBar" />
+</resources>

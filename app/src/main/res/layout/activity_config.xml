@@ -1,0 +1,32 @@
+<?xml version="1.0" encoding="utf-8"?>
+<ScrollView xmlns:android="http://schemas.android.com/apk/res/android"
+  android:layout_width="match_parent" android:layout_height="match_parent" android:padding="14dp">
+
+  <LinearLayout
+    android:layout_width="match_parent" android:layout_height="wrap_content" android:orientation="vertical">
+
+    <TextView android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="Configure Device" android:textSize="22sp" android:textStyle="bold" />
+
+    <TextView android:layout_width="wrap_content" android:layout_height="wrap_content" android:layout_marginTop="10dp" android:text="Mode" />
+    <Spinner android:id="@+id/modeSpinner" android:layout_width="match_parent" android:layout_height="wrap_content" />
+
+    <LinearLayout android:id="@+id/baseWrap" android:layout_width="match_parent" android:layout_height="wrap_content" android:orientation="vertical" android:visibility="gone">
+      <TextView android:layout_width="wrap_content" android:layout_height="wrap_content" android:layout_marginTop="10dp" android:text="Server Base URL" />
+      <EditText android:id="@+id/baseUrlEdit" android:layout_width="match_parent" android:layout_height="wrap_content" android:hint="https://your-server" android:inputType="textUri" />
+    </LinearLayout>
+
+    <TextView android:layout_width="wrap_content" android:layout_height="wrap_content" android:layout_marginTop="10dp" android:text="Device Token" />
+    <EditText android:id="@+id/tokenEdit" android:layout_width="match_parent" android:layout_height="wrap_content" android:hint="token" android:inputType="text" />
+
+    <Button android:id="@+id/validateBtn" android:layout_width="match_parent" android:layout_height="wrap_content" android:layout_marginTop="12dp" android:text="Validate Token" />
+
+    <FrameLayout android:layout_width="match_parent" android:layout_height="220dp" android:layout_marginTop="10dp" android:background="#F0F0F0">
+      <ImageView android:id="@+id/previewImage" android:layout_width="match_parent" android:layout_height="match_parent" android:scaleType="fitCenter" android:contentDescription="Preview" />
+      <ScrollView android:layout_width="match_parent" android:layout_height="match_parent">
+        <TextView android:id="@+id/previewMessage" android:layout_width="match_parent" android:layout_height="wrap_content" android:gravity="center" android:padding="10dp" android:text="Preview or status message" android:textColor="#333333" />
+      </ScrollView>
+    </FrameLayout>
+
+    <Button android:id="@+id/saveBtn" android:layout_width="match_parent" android:layout_height="wrap_content" android:layout_marginTop="10dp" android:text="Save" android:enabled="false" />
+  </LinearLayout>
+</ScrollView>

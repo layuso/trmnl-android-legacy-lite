@@ -1,0 +1,61 @@
+package com.trmnl.legacylite;
+
+import android.graphics.Bitmap;
+import android.graphics.BitmapFactory;
+import org.json.JSONObject;
+import java.io.InputStream;
+import java.net.HttpURLConnection;
+import java.net.URL;
+
+public class ApiClient {
+  public static class Result {
+    public boolean ok; public String message; public Bitmap bitmap; public int refreshRate;
+    public Result(boolean ok,String message,Bitmap bitmap,int refreshRate){this.ok=ok;this.message=message;this.bitmap=bitmap;this.refreshRate=refreshRate;}
+  }
+  public interface Callback { void onResult(Result r); }
+
+  public void getDisplay(String base, String token, Callback cb){ fetch(base, token, "/api/display", cb); }
+  public void getCurrent(String base, String token, Callback cb){ fetch(base, token, "/api/display/current", cb); }
+
+  private void fetch(String base, String token, String path, Callback cb){
+    new Thread(() -> {
+      HttpURLConnection c=null, ic=null; InputStream is=null;
+      try{
+        String b = normalize(base);
+        URL u = new URL(b + path);
+        c = (HttpURLConnection)u.openConnection();
+        c.setRequestMethod("GET"); c.setConnectTimeout(10000); c.setReadTimeout(10000);
+        c.setRequestProperty("Accept","application/json");
+        c.setRequestProperty("access-token", token.trim());
+        int code = c.getResponseCode();
+        if(code<200 || code>=300){ cb.onResult(new Result(false,"HTTP "+code,null,60)); return; }
+        String body = read(c.getInputStream());
+        JSONObject j = new JSONObject(body);
+        String image = first(j.optString("image_url",null), j.optString("imageUrl",null), j.optString("url",null));
+        int rr = j.optInt("refresh_rate", j.optInt("refreshRate", 60));
+        if(rr<=0) rr=60;
+        if(image==null || image.trim().isEmpty()){
+          String msg = first(j.optString("error", null), j.optString("message", null), "No image URL in response");
+          cb.onResult(new Result(false,msg,null,rr)); return;
+        }
+        ic = (HttpURLConnection)new URL(image).openConnection();
+        ic.setRequestMethod("GET"); ic.setConnectTimeout(10000); ic.setReadTimeout(10000);
+        if(ic.getResponseCode()<200 || ic.getResponseCode()>=300){ cb.onResult(new Result(false,"Image fetch failed",null,rr)); return; }
+        is = ic.getInputStream();
+        Bitmap bmp = BitmapFactory.decodeStream(is);
+        if(bmp==null){ cb.onResult(new Result(false,"Image decode failed",null,rr)); return; }
+        cb.onResult(new Result(true,"OK",bmp,rr));
+      }catch(Exception e){ cb.onResult(new Result(false,e.getMessage(),null,60)); }
+      finally{ try{ if(is!=null)is.close(); }catch(Exception ignored){} if(c!=null)c.disconnect(); if(ic!=null)ic.disconnect(); }
+    }).start();
+  }
+
+  private String normalize(String base){
+    String b=base==null?"":base.trim();
+    if(!b.startsWith("http://") && !b.startsWith("https://")) b="https://"+b;
+    while(b.endsWith("/")) b=b.substring(0,b.length()-1);
+    return b;
+  }
+  private String first(String... vals){ for(String s: vals){ if(s!=null && !s.trim().isEmpty()) return s; } return null; }
+  private String read(InputStream is) throws Exception { byte[] buf=new byte[4096]; int n; StringBuilder sb=new StringBuilder(); while((n=is.read(buf))!=-1){ sb.append(new String(buf,0,n)); } return sb.toString(); }
+}

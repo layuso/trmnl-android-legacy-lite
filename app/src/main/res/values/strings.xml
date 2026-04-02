@@ -1,0 +1,7 @@
+<resources>
+  <string name="app_name">TRMNL Legacy Lite</string>
+  <string-array name="modes">
+    <item>BYOD</item>
+    <item>BYOS</item>
+  </string-array>
+</resources>
