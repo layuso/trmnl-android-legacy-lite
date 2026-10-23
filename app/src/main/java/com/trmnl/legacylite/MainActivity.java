@@ -70,6 +70,7 @@ public class MainActivity extends AppCompatActivity {
   }
 
   private void openConfig(){
+    if(ConfigActivity.showing) return;
     configLauncher.launch(new Intent(this, ConfigActivity.class));
   }
 

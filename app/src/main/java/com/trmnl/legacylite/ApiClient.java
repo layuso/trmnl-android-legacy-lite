@@ -6,6 +6,7 @@ import org.json.JSONObject;
 import java.io.InputStream;
 import java.net.ConnectException;
 import java.net.HttpURLConnection;
+import java.net.SocketException;
 import java.net.SocketTimeoutException;
 import java.net.URL;
 import java.net.UnknownHostException;
@@ -35,7 +36,13 @@ public class ApiClient {
   public interface Callback { void onResult(Result r); }
 
   public void getDisplay(String base, String token, Callback cb){ fetch(base, token, "/api/display", cb); }
-  public void getCurrent(String base, String token, Callback cb){ fetch(base, token, "/api/display/current", cb); }
+  public void getCurrent(String base, String token, Callback cb){
+    // BYOS servers (LaraPaper, Terminus) serve /api/current_screen; fall back to the old path on 404.
+    fetch(base, token, "/api/current_screen", r -> {
+      if(!r.ok && "HTTP 404".equals(r.message)) fetch(base, token, "/api/display/current", cb);
+      else cb.onResult(r);
+    });
+  }
 
   public void fetchImageByUrl(String imageUrl, Callback cb){
     new Thread(() -> {
@@ -146,7 +153,7 @@ public class ApiClient {
   }
 
   private boolean isNetworkException(Exception e){
-    return e instanceof UnknownHostException || e instanceof SocketTimeoutException || e instanceof ConnectException;
+    return e instanceof UnknownHostException || e instanceof SocketTimeoutException || e instanceof SocketException;
   }
 
   private String tryReadError(HttpURLConnection c){
