@@ -31,7 +31,7 @@ jobs:
           test -x /usr/bin/aapt2 || { echo "Native AAPT2 missing"; exit 1; }
           file -L /usr/bin/aapt2
           /usr/bin/aapt2 version
-          test "$(file -Lb /usr/bin/aapt2)" != *"x86-64"* || { echo "Wrong AAPT2 architecture"; exit 1; }
+          file -Lb /usr/bin/aapt2 | grep -Eqi "ARM aarch64|ARM64|aarch64" || { echo "AAPT2 is not ARM64"; exit 1; }
 
       - name: Build debug APK (no deploy)
         shell: bash
