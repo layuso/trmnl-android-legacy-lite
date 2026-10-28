@@ -9,6 +9,7 @@ import android.graphics.drawable.ColorDrawable;
 import android.os.Bundle;
 import android.os.Handler;
 import android.os.Looper;
+import android.util.Log;
 import android.view.View;
 import android.view.WindowManager;
 import android.widget.ImageView;
@@ -18,10 +19,14 @@ import androidx.activity.result.contract.ActivityResultContracts;
 import androidx.appcompat.app.AppCompatActivity;
 
 public class MainActivity extends AppCompatActivity {
+  private static final String TAG = "TrmnlGraphicsIsolation";
+  // Diagnostic build: do not automatically render full-screen bitmaps on entry.
+  // The existing menu can explicitly request a playlist image for isolation testing.
+  private static final boolean ISOLATE_INITIAL_BITMAP = true;
   private static final String FALLBACK_IMAGE_URL = "https://trmnl.com/images/system_screens/setup_logo/og_plus.png";
 
   // Stage 1 full-refresh fallback settings (safe on Android 5.1.1)
-  private static final boolean ENABLE_FULL_REFRESH_CYCLE = true;
+  private static final boolean ENABLE_FULL_REFRESH_CYCLE = false;
   private static final long FULL_REFRESH_BLACK_HOLD_MS = 1000;
   private static final long FULL_REFRESH_WHITE_HOLD_MS = 1000;
   private static final int FULL_REFRESH_CYCLES = 3;
@@ -38,8 +43,9 @@ public class MainActivity extends AppCompatActivity {
 
   private final ActivityResultLauncher<Intent> configLauncher = registerForActivityResult(
       new ActivityResultContracts.StartActivityForResult(), r -> {
+        Log.i(TAG, "Config returned: configured=" + prefs.configured());
         if (prefs.configured()) {
-          recreate();
+          showIsolationReady("Settings saved. Tap screen to load a test image.");
         } else {
           openConfig();
         }
@@ -52,7 +58,9 @@ public class MainActivity extends AppCompatActivity {
     api = new ApiClient();
     image = findViewById(R.id.fullImage);
     status = findViewById(R.id.statusText);
-    applyConfiguredOrientation();
+    // Avoid a requested orientation change during the sensitive save-to-display transition.
+    // Keep the panel's current orientation for this diagnostic build.
+    Log.i(TAG, "MainActivity created; leaving device orientation unchanged");
     immersive();
 
     image.setOnClickListener(v -> showMenu());
@@ -60,7 +68,9 @@ public class MainActivity extends AppCompatActivity {
 
   @Override protected void onResume(){
     super.onResume();
+    Log.i(TAG, "MainActivity resumed; configured=" + prefs.configured());
     if(!prefs.configured()) openConfig();
+    else if (ISOLATE_INITIAL_BITMAP) showIsolationReady("Connected. Tap screen to load a test image.");
     else loadNext();
   }
 
@@ -73,9 +83,21 @@ public class MainActivity extends AppCompatActivity {
     configLauncher.launch(new Intent(this, ConfigActivity.class));
   }
 
+  private void showIsolationReady(String msg) {
+    h.removeCallbacksAndMessages(null);
+    image.setImageDrawable(null);
+    status.setText(msg);
+    status.setVisibility(View.VISIBLE);
+    Log.i(TAG, "Graphics isolation ready: " + msg);
+  }
+
   private void loadNext(){
+    Log.i(TAG, "Explicit/automatic playlist request starting");
     status.setVisibility(View.GONE);
-    api.getDisplay(prefs.effectiveBase(), prefs.token(), r -> runOnUiThread(() -> applyResult(r)));
+    api.getDisplay(prefs.effectiveBase(), prefs.token(), r -> runOnUiThread(() -> {
+      Log.i(TAG, "Playlist response: ok=" + r.ok + " bitmap=" + (r.bitmap != null));
+      applyResult(r);
+    }));
   }
 
   private void loadCurrentWithFullRefresh(){
@@ -134,7 +156,9 @@ public class MainActivity extends AppCompatActivity {
 
   private void applyResult(ApiClient.Result r){
     if(r.ok && r.bitmap!=null){
+      Log.i(TAG, "About to set full-screen bitmap; dimensions=" + r.bitmap.getWidth() + "x" + r.bitmap.getHeight());
       image.setImageBitmap(r.bitmap);
+      Log.i(TAG, "Full-screen setImageBitmap returned");
       lastBitmap = r.bitmap;
       refreshSec = r.refreshRate>0 ? r.refreshRate : 60;
       status.setText("");
@@ -185,7 +209,7 @@ public class MainActivity extends AppCompatActivity {
         "Configure Device",
         "Refresh Current Image",
         "Load Next Playlist Image",
-        "Debug Full Refresh Cycle"
+        "Debug Full Refresh Cycle (disabled in isolation)"
     };
 
     new AlertDialog.Builder(this)
@@ -198,7 +222,8 @@ public class MainActivity extends AppCompatActivity {
           } else if(which == 2){
             loadNext();
           } else if(which == 3){
-            debugTriggerFullRefreshCycle();
+            Log.i(TAG, "Full refresh debug action disabled for graphics isolation");
+            showIsolationReady("Full refresh disabled in isolation build.");
           }
         })
         .show();

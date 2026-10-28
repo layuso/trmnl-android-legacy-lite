@@ -2,7 +2,9 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
   <uses-permission android:name="android.permission.INTERNET" />
 
-  <application android:allowBackup="true" android:label="TRMNL Legacy Lite" android:supportsRtl="true" android:usesCleartextTraffic="true" android:theme="@style/Theme.TrmnlLegacyLite">
+  <!-- The i.MX7 Android 5.1.1 PixelFlinger stack can crash in native GL composition.
+       Keep this legacy e-ink app on software-rendered Android Views. -->
+  <application android:allowBackup="true" android:label="TRMNL Legacy Lite" android:supportsRtl="true" android:usesCleartextTraffic="true" android:hardwareAccelerated="false" android:theme="@style/Theme.TrmnlLegacyLite">
     <activity android:name=".ConfigActivity" android:exported="false" android:label="Configure Device" />
     <activity android:name=".MainActivity" android:exported="true" android:theme="@style/Theme.TrmnlLegacyLite">
       <intent-filter>
