@@ -9,6 +9,9 @@ import org.json.JSONArray;
 import org.json.JSONObject;
 
 public class ConfigActivity extends AppCompatActivity {
+  // True from onCreate until finish(), so MainActivity never stacks a second copy.
+  static boolean showing = false;
+
   private Spinner modeSpinner;
   private Spinner orientationSpinner;
   private EditText baseEdit, tokenEdit;
@@ -20,8 +23,14 @@ public class ConfigActivity extends AppCompatActivity {
   private Prefs prefs;
   private ApiClient api;
 
+  @Override public void finish(){
+    showing = false;
+    super.finish();
+  }
+
   @Override protected void onCreate(Bundle b){
     super.onCreate(b); setContentView(R.layout.activity_config);
+    showing = true;
     prefs=new Prefs(this); api=new ApiClient();
     modeSpinner=findViewById(R.id.modeSpinner);
     orientationSpinner=findViewById(R.id.orientationSpinner);
