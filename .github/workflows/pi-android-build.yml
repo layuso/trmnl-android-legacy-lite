@@ -1,0 +1,50 @@
+name: TRMNL Legacy Lite — Raspberry Pi Android build
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: [self-hosted, Linux, ARM64, waymarker-lab-01, android-builder]
+    timeout-minutes: 35
+    env:
+      ANDROID_HOME: /home/layuso/Android/Sdk
+      ANDROID_SDK_ROOT: /home/layuso/Android/Sdk
+      JAVA_HOME: /usr/lib/jvm/temurin-17-jdk-arm64
+    steps:
+      - name: Checkout approved source
+        uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+
+      - name: Check Android build environment (ARM64)
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(uname -m)" = "aarch64"
+          java -version
+          test -n "${ANDROID_HOME:-}" || { echo "ANDROID_HOME must be set for the runner service"; exit 1; }
+          test -f "$ANDROID_HOME/platforms/android-34/android.jar" || { echo "Android SDK platform 34 missing"; exit 1; }
+          test -x /usr/bin/aapt2 || { echo "Native AAPT2 missing"; exit 1; }
+          file -L /usr/bin/aapt2
+          /usr/bin/aapt2 version
+          file -Lb /usr/bin/aapt2 | grep -Eqi "ARM aarch64|ARM64|aarch64" || { echo "AAPT2 is not ARM64"; exit 1; }
+
+      - name: Build debug APK (no deploy)
+        shell: bash
+        run: |
+          set -euo pipefail
+          chmod +x ./gradlew
+          ./gradlew --no-daemon --stacktrace -Pandroid.aapt2FromMavenOverride=/usr/bin/aapt2 assembleDebug
+          sha256sum app/build/outputs/apk/debug/app-debug.apk
+
+      - name: Upload debug APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: trmnl-legacylite-arm64-pi-debug
+          path: app/build/outputs/apk/debug/app-debug.apk
+          if-no-files-found: error
+          retention-days: 14
