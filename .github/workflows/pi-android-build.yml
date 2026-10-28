@@ -10,6 +10,10 @@ jobs:
   build:
     runs-on: [self-hosted, Linux, ARM64, waymarker-lab-01, android-builder]
     timeout-minutes: 35
+    env:
+      ANDROID_HOME: /home/layuso/Android/Sdk
+      ANDROID_SDK_ROOT: /home/layuso/Android/Sdk
+      JAVA_HOME: /usr/lib/jvm/temurin-17-jdk-arm64
     steps:
       - name: Checkout approved source
         uses: actions/checkout@v4
@@ -24,17 +28,17 @@ jobs:
           java -version
           test -n "${ANDROID_HOME:-}" || { echo "ANDROID_HOME must be set for the runner service"; exit 1; }
           test -f "$ANDROID_HOME/platforms/android-34/android.jar" || { echo "Android SDK platform 34 missing"; exit 1; }
-          test -x "$ANDROID_HOME/build-tools/34.0.0/aapt2" || { echo "Android SDK build-tools 34.0.0 aapt2 missing"; exit 1; }
-          file "$ANDROID_HOME/build-tools/34.0.0/aapt2"
-          "$ANDROID_HOME/build-tools/34.0.0/aapt2" version
-          echo "Check that AAPT2 above executes on ARM64, not an x86-64 binary."
+          test -x /usr/bin/aapt2 || { echo "Native AAPT2 missing"; exit 1; }
+          file -L /usr/bin/aapt2
+          /usr/bin/aapt2 version
+          test "$(file -Lb /usr/bin/aapt2)" != *"x86-64"* || { echo "Wrong AAPT2 architecture"; exit 1; }
 
       - name: Build debug APK (no deploy)
         shell: bash
         run: |
           set -euo pipefail
           chmod +x ./gradlew
-          ./gradlew --no-daemon --stacktrace assembleDebug
+          ./gradlew --no-daemon --stacktrace -Pandroid.aapt2FromMavenOverride=/usr/bin/aapt2 assembleDebug
           sha256sum app/build/outputs/apk/debug/app-debug.apk
 
       - name: Upload debug APK
